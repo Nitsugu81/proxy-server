@@ -7,7 +7,7 @@ proxy_username = 'Augustin'
 proxy_password = '1208'
 
 # URL cible pour la requête
-target_urls = ['http://httpbin.org/get', 'http://httpbin.org/get']
+target_urls = ['http://httpbin.org/get']
 
 # Configuration du proxy dans la requête
 proxies = {

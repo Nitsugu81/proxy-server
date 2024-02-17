@@ -9,6 +9,8 @@ class Proxy:
     def __init__(self):
         self.username = "Augustin"  # Nom d'utilisateur pour l'authentification
         self.password = "1208"       # Mot de passe pour l'authentification
+        self.blocked_urls = []
+        self.lock = threading.Lock()  # Verrou pour la modification sécurisée de la liste d'adresses bloquées
 
     # Méthode pour gérer chaque client connecté
     def handle_client(self, connection):
@@ -22,6 +24,8 @@ class Proxy:
         if 2 not in set(methods):
             connection.close()
             return
+        
+        
 
         # Envoyer un message de bienvenue
         connection.sendall(bytes([SOCKS_VERSION, 2]))
@@ -39,6 +43,7 @@ class Proxy:
             domain_length = connection.recv(1)[0]
             address = connection.recv(domain_length)
             address = socket.gethostbyname(address)
+        
 
         port = int.from_bytes(connection.recv(2), 'big', signed=False)
 
@@ -127,6 +132,13 @@ class Proxy:
         for i in range(nmethods):
             methods.append(ord(connection.recv(1)))
         return methods
+    
+    # Vérifier si l'URL est bloquée
+    def is_blocked(self, url):
+        for blocked_url in self.blocked_urls:
+            if blocked_url in url:
+                return True
+        return False
 
     # Méthode pour exécuter le proxy
     def run(self, host, port):
@@ -135,13 +147,50 @@ class Proxy:
         s.listen()
 
         print("* Serveur proxy SOCKS5 en cours d'exécution sur {}:{}".format(host, port))
+        print("*Liste des commandes")
+        print("* -q = pour fermer le terminal")
+        print("* -b 'IPadresse' = bloque une adresse IP")
+        print("* -u 'IPadresse' = débloque une adresse IP")
+        # Thread pour gérer les entrées utilisateur
+        threading.Thread(target=self.user_input_thread).start()
 
         while True:
             conn, addr = s.accept()
             print("* Nouvelle connexion de {}".format(addr))
-            t = threading.Thread(target=self.handle_client, args=(conn,))
-            t.start()
+            if self.is_blocked(addr):
+                print("* Votre adresse est fait partie des adresses bloquées")
+                conn.close()
+                continue
+            else :
+                t = threading.Thread(target=self.handle_client, args=(conn,))
+                t.start()
 
+
+    def user_input_thread(self):
+        while True:
+            user_input = input()
+            if user_input.lower() == '-q':
+                return
+            elif '-b' in user_input:
+                with self.lock:
+                    user_input_split = user_input.split(" ")
+                    self.blocked_urls.append(user_input_split[1])
+                    print("* Adresse ajoutée à la liste des adresses bloquées.")
+            elif '-u' in user_input:
+                with self.lock:
+                    user_input_split = user_input.split(" ")
+                    if user_input_split[1] in self.blocked_urls:
+                        self.blocked_urls.remove(user_input_split[1])
+                        print("* Adresse retirée de la liste des adresses bloquées.")
+                    else:
+                        print("* L'adresse spécifiée n'est pas dans la liste des adresses bloquées.")
+            else:
+                print("* Commande inconnue")
+
+
+
+    
+    
 # Exécution du proxy
 if __name__ == "__main__":
     proxy = Proxy()
