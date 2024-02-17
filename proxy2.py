@@ -9,7 +9,8 @@ class Proxy:
     def __init__(self):
         self.username = "Augustin"  # Nom d'utilisateur pour l'authentification
         self.password = "1208"       # Mot de passe pour l'authentification
-        self.blocked_urls = []
+        self.blocked_urls = ['httpbin.org']
+        self.blocked_ip = []
         self.lock = threading.Lock()  # Verrou pour la modification sécurisée de la liste d'adresses bloquées
 
     # Méthode pour gérer chaque client connecté
@@ -23,6 +24,7 @@ class Proxy:
         # Accepter uniquement l'authentification USERNAME/PASSWORD
         if 2 not in set(methods):
             connection.close()
+            print("* Mauvais identifiants")
             return
         
         
@@ -41,9 +43,14 @@ class Proxy:
             address = socket.inet_ntoa(connection.recv(4))
         elif address_type == 3:  # Nom de domaine
             domain_length = connection.recv(1)[0]
-            address = connection.recv(domain_length)
-            address = socket.gethostbyname(address)
+            domain = connection.recv(domain_length)
+            address = socket.gethostbyname(domain)
         
+
+        if self.is_blocked(domain.decode('utf-8')) :
+            print("* l'URL est bloqué")
+            connection.close()
+            return
 
         port = int.from_bytes(connection.recv(2), 'big', signed=False)
 
@@ -148,7 +155,6 @@ class Proxy:
 
         print("* Serveur proxy SOCKS5 en cours d'exécution sur {}:{}".format(host, port))
         print("*Liste des commandes")
-        print("* -q = pour fermer le terminal")
         print("* -b 'IPadresse' = bloque une adresse IP")
         print("* -u 'IPadresse' = débloque une adresse IP")
         # Thread pour gérer les entrées utilisateur
@@ -169,18 +175,16 @@ class Proxy:
     def user_input_thread(self):
         while True:
             user_input = input()
-            if user_input.lower() == '-q':
-                return
-            elif '-b' in user_input:
+            if '-b' in user_input:
                 with self.lock:
                     user_input_split = user_input.split(" ")
-                    self.blocked_urls.append(user_input_split[1])
+                    self.blocked_ip.append(user_input_split[1])
                     print("* Adresse ajoutée à la liste des adresses bloquées.")
             elif '-u' in user_input:
                 with self.lock:
                     user_input_split = user_input.split(" ")
-                    if user_input_split[1] in self.blocked_urls:
-                        self.blocked_urls.remove(user_input_split[1])
+                    if user_input_split[1] in self.blocked_ip:
+                        self.blocked_ip.remove(user_input_split[1])
                         print("* Adresse retirée de la liste des adresses bloquées.")
                     else:
                         print("* L'adresse spécifiée n'est pas dans la liste des adresses bloquées.")
